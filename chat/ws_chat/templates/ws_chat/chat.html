@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chat</title>
+        <style>
+            .message {
+                padding: 5px;
+                margin-bottom: 20px;
+                border: 2px solid black;
+            }
+            .footer {
+                position: fixed;
+                bottom: 0;
+            }
+            #new-message {
+                font-size: medium;
+                margin-left: auto;
+                margin-right: auto;
+                width: 300px;
+            }
+            #send {
+                font-size: medium;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="chatbox"></div>
+        <div class="footer">
+            <input id="new-message" type="text" placeholder="Type your message">
+            <button id="send">Send</button>
+        </div>
+        {{ username|json_script:"json-username"}}
+        <script>
+            const userName = JSON.parse(document.getElementById('json-username').textContent)
+            var num_message = 0;
+            const sock = new WebSocket(
+                'ws://' +
+                window.location.host +
+                '/ws/chat/'
+            );
+
+            sock.onmessage = function(e) {
+                console.log('onmessege');
+
+                const data = JSON.parse(e.data)
+                if (data.message_type === 'chat_message') {
+                    create_message(data.message, data.message_id, data.username);
+                } else {
+                    document.getElementById(data.message_id).innerHTML = data.message;
+                }
+            }
+
+            sock.onclose = function(e) {
+                console.log('The socket close unexpectadly');
+            };
+
+            function create_message(message, id, username) {
+                const msg_box = document.createElement('div');
+                msg_box.className = 'message';
+                const name = document.createElement('b');
+                name.innerHTML = username + ':';
+                const msg = document.createElement('p');
+                msg.id = id;
+                msg.innerHTML = message;
+                msg_box.appendChild(name);
+                msg_box.appendChild(msg);
+                if (username === userName) {
+                    ++num_message;
+                    const textBox = document.createElement('input');
+                    textBox.type = 'text';
+                    const editButton = document.createElement('button');
+                    editButton.innerHTML = 'edit';
+                    editButton.onclick = function(e) {
+                        const edit_msg = textBox.value;
+                        sock.send(JSON.stringify({
+                            'message_type': 'edit_message',
+                            'message_id': msg.id, 
+                            'message': edit_msg,
+                            'username': userName,
+                        }));
+                        textBox.value = '';
+                    }
+                    msg_box.appendChild(textBox);
+                    msg_box.appendChild(editButton);
+                }
+                document.getElementById('chatbox').appendChild(msg_box);
+            }
+
+            document.querySelector('#send').onclick = function(event) {
+                const messageInputDom = document.querySelector('#new-message');
+                const message = messageInputDom.value;
+                const message_id = userName + num_message;
+                sock.send(JSON.stringify({
+                    'message_type': 'chat_message',
+                    'message_id': message_id, 
+                    'message': message,
+                    'username': userName,
+                }));
+                messageInputDom.value = '';
+            }
+        </script>
+    </body>
+</html>
